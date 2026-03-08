@@ -82,6 +82,79 @@ Launch these 5 subagents simultaneously:
 3. Generate prioritized action plan
 4. Output client-ready report
 
+---
+
+## Agent Failure Handling & Resilience
+
+When running the full audit with 5 parallel subagents, failures **will** happen (network
+timeouts, rate limiting, malformed HTML, etc.). The orchestrator must handle these
+gracefully rather than aborting the entire audit.
+
+### Failure Detection
+
+After launching all 5 subagents, check each result for:
+- **Complete failure**: Agent produced no output or threw an unrecoverable error.
+- **Partial failure**: Agent completed some analyses but not all (e.g., brand scanner
+  succeeded but Wikipedia API timed out).
+- **Data quality issue**: Agent returned results but with warnings (e.g., "robots.txt
+  returned 403 — status unknown").
+
+### Recovery Strategy
+
+| Failure Type | Action | Scoring Impact |
+|---|---|---|
+| **1 agent fails completely** | Continue with remaining 4 agents. Mark the failed category as "N/A — analysis unavailable" in the report. Recalculate the GEO Score using only the available categories (re-weight proportionally). | Composite score still valid, note reduced confidence. |
+| **2 agents fail** | Continue with remaining 3 agents. Issue a prominent warning that the audit is partial. Still generate a report but label it "PARTIAL AUDIT" in the header. | Score marked as "Partial — X/5 analyses completed". |
+| **3+ agents fail** | Abort the full audit. Inform the user which agents failed and suggest re-running individual commands (e.g., `/geo citability`, `/geo technical`) to isolate the problem. | No composite score generated. |
+| **Partial agent failure** | Use whatever data the agent did return. In the report, note which sub-analyses within that agent succeeded and which did not. Score only the successful sub-analyses. | Category score based on available data with a note. |
+| **Timeout (>60s per agent)** | If an agent hasn't returned after 60 seconds, do NOT wait indefinitely. Mark it as timed out and proceed with synthesis using whatever results are available. | Same as complete failure for that agent. |
+
+### Re-Weighting Formula
+
+When one or more agents fail, re-weight the remaining scores proportionally:
+
+```
+adjusted_weight = original_weight / sum(weights_of_successful_agents)
+```
+
+Example: If geo-schema (10% weight) fails, the remaining 90% of weights are
+scaled to 100%:
+- AI Citability: 25/90 = 27.8%
+- Brand Authority: 20/90 = 22.2%
+- Content Quality: 20/90 = 22.2%
+- Technical: 15/90 = 16.7%
+- Platform Optimization: 10/90 = 11.1%
+
+### Retry Logic
+
+- **Automatic retry**: If an agent fails on its first attempt due to a network
+  error or timeout, retry ONCE with a 5-second backoff.
+- **No retry** for: malformed HTML parsing errors, authentication failures (403),
+  or domain resolution failures (DNS).
+- **Manual retry**: Always inform the user which agent failed and which individual
+  `/geo` command they can run to retry just that analysis.
+
+### Error Reporting in Output
+
+Every audit report must include a "Data Completeness" section:
+
+```markdown
+## Data Completeness
+
+| Agent | Status | Notes |
+|---|---|---|
+| AI Visibility | ✅ Complete | — |
+| Platform Analysis | ✅ Complete | — |
+| Technical SEO | ⚠️ Partial | Core Web Vitals API timed out; other checks passed |
+| Content Quality | ✅ Complete | — |
+| Schema Markup | ❌ Failed | Connection refused after retry; run `/geo schema <url>` separately |
+
+**Audit Confidence:** 4/5 agents completed (High)
+**Score Basis:** Composite GEO Score calculated from 4 of 5 categories (re-weighted)
+```
+
+---
+
 ### Scoring Methodology
 
 | Category | Weight | Measured By |
