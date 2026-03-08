@@ -181,6 +181,20 @@ def fetch_page(url: str, timeout: int = 30) -> dict:
     return result
 
 
+def _parse_sitemap_url(line: str) -> str:
+    """Parse a Sitemap: directive from robots.txt, preserving the full URL.
+
+    The robots.txt format is 'Sitemap: <url>'. When we split on ':', the
+    first split gives us 'Sitemap' and the rest of the URL. However, the URL
+    itself contains '://' so we must split only on the FIRST colon and then
+    strip whitespace. This avoids the old bug where 'https' was split off and
+    naively re-prepended as 'http'.
+    """
+    # Everything after the first colon is the URL (which itself contains ':')
+    _, _, url_part = line.partition(":")
+    return url_part.strip()
+
+
 def fetch_robots_txt(url: str, timeout: int = 15) -> dict:
     """Fetch and parse robots.txt for AI crawler directives."""
     parsed = urlparse(url)
@@ -241,11 +255,7 @@ def fetch_robots_txt(url: str, timeout: int = 15) -> dict:
                         {"directive": "Allow", "path": path}
                     )
                 elif line.lower().startswith("sitemap:"):
-                    sitemap_url = line.split(":", 1)[1].strip()
-                    # Handle case where "Sitemap:" splits off the "http"
-                    if not sitemap_url.startswith("http"):
-                        sitemap_url = "http" + sitemap_url
-                    result["sitemaps"].append(sitemap_url)
+                    result["sitemaps"].append(_parse_sitemap_url(line))
 
             # Determine status for each AI crawler
             for crawler in ai_crawlers:

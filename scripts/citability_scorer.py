@@ -13,6 +13,7 @@ Based on research showing optimal AI-cited passages are:
 import sys
 import json
 import re
+from datetime import datetime
 from typing import Optional
 
 try:
@@ -21,6 +22,41 @@ try:
 except ImportError:
     print("ERROR: Required packages not installed. Run: pip install requests beautifulsoup4")
     sys.exit(1)
+
+
+def _build_year_pattern() -> re.Pattern:
+    """Build a dynamic regex pattern that matches years from 2010 to current_year + 1.
+
+    This avoids the previous hardcoded range (2013-2026) that required manual
+    annual updates. The pattern matches any 4-digit year from 2010 through one
+    year beyond the current date, covering both recent and slightly future-dated
+    content (e.g., '2027 projections' written in late 2026).
+    """
+    current_year = datetime.now().year
+    max_year = current_year + 1
+    # Build alternation for the last two digits: 10..max_year's last two digits
+    # e.g., for max_year=2027: 20(?:1\d|2[0-7])
+    last_two = max_year % 100
+    decade = last_two // 10  # e.g., 2 for 2020s
+    unit = last_two % 10     # e.g., 7 for 2027
+
+    parts = []
+    # Full decades from 10-19 up to the decade before current
+    for d in range(1, decade):
+        parts.append(f"{d}\\d")
+    # Current decade partial: e.g., 2[0-7]
+    if unit == 9:
+        parts.append(f"{decade}\\d")
+    else:
+        parts.append(f"{decade}[0-{unit}]")
+
+    alternation = "|".join(parts)
+    pattern_str = f"\\b20(?:{alternation})\\b"
+    return re.compile(pattern_str)
+
+
+# Pre-compile at module load
+YEAR_PATTERN = _build_year_pattern()
 
 
 def score_passage(text: str, heading: Optional[str] = None) -> dict:
@@ -171,8 +207,8 @@ def score_passage(text: str, heading: Optional[str] = None) -> dict:
     number_count = len(re.findall(r"\b\d+(?:,\d{3})*(?:\.\d+)?\s+(?:users|customers|pages|sites|companies|businesses|people|percent|times|x\b)", text, re.IGNORECASE))
     sd_score += min(number_count * 2, 4)
 
-    # Year references (indicates timeliness)
-    year_count = len(re.findall(r"\b20(?:2[3-6]|1\d)\b", text))
+    # Year references (indicates timeliness) — uses dynamic pattern
+    year_count = len(YEAR_PATTERN.findall(text))
     if year_count > 0:
         sd_score += 2
 
