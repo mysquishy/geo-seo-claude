@@ -102,9 +102,12 @@ geo-seo-claude/
 │   ├── brand_scanner.py          # Brand mention detection
 │   ├── llmstxt_generator.py      # llms.txt validation & generation
 │   └── generate_pdf_report.py    # PDF report generator (ReportLab)
-├── tests/                        # Test suite (55 tests)
+├── tests/                        # Test suite (121 tests)
 │   ├── test_citability_scorer.py # Scoring logic, grades, year pattern tests
-│   └── test_fetch_page.py        # Sitemap URL parsing, content extraction tests
+│   ├── test_fetch_page.py        # Sitemap URL parsing, content extraction tests
+│   ├── test_brand_scanner.py     # Brand mention scanning, Wikipedia API mocking
+│   ├── test_llmstxt_generator.py # llms.txt validation and generation tests
+│   └── test_generate_pdf_report.py # PDF report data structures, color logic
 ├── schema/                       # JSON-LD templates
 │   ├── organization.json         # Organization schema (with sameAs)
 │   ├── local-business.json       # LocalBusiness schema
@@ -177,13 +180,13 @@ Full audits gracefully handle agent failures with automatic retry, proportional 
 
 ## Testing
 
-Run the test suite (55 tests) from the repo root:
+Run the test suite (121 tests) from the repo root:
 
 ```bash
 python3 -m pytest tests/ -v
 ```
 
-Tests cover citability scoring logic, grade boundaries, dynamic year pattern matching, sitemap URL parsing (regression tests for a fixed bug), and HTML content block extraction.
+Tests cover citability scoring logic, grade boundaries, dynamic year pattern matching, sitemap URL parsing (regression tests for a fixed bug), HTML content block extraction, brand mention scanning (with mocked Wikipedia/Wikidata APIs), llms.txt validation and generation (page categorization, format checks), and PDF report data structures (color logic, score mapping, action plan tiers).
 
 ---
 
@@ -217,8 +220,10 @@ This fork includes the following improvements over the [original repo](https://g
 
 - **Bug fix:** Sitemap URL parsing in `fetch_page.py` — HTTPS URLs were being corrupted during robots.txt parsing
 - **Bug fix:** Dynamic year regex in `citability_scorer.py` — replaced hardcoded 2013-2026 range with auto-adjusting pattern
+- **Perf fix:** Eliminated triple BeautifulSoup re-parse in `fetch_page.py` — reordered operations so JSON-LD and SSR checks run before the destructive `decompose()`, reducing from 4 HTML parses to 1
+- **Bug fix:** Silent exception swallowing in `crawl_sitemap()` — changed return type from bare list to structured dict with `pages`, `count`, and `errors` keys so failures are surfaced instead of silently dropped
 - **Feature:** Agent Failure Handling specification in `geo/SKILL.md` — recovery strategy, re-weighting formula, retry logic, Data Completeness reporting
-- **Feature:** Test suite — 55 tests covering citability scoring, content extraction, and the fixed bugs
+- **Feature:** Test suite — 121 tests covering citability scoring, content extraction, brand scanning, llms.txt generation, PDF report logic, and the fixed bugs
 
 ---
 

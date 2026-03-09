@@ -87,7 +87,7 @@ def fetch_page(url: str, timeout: int = 30) -> dict:
         for header in security_headers:
             result["security_headers"][header] = response.headers.get(header, None)
 
-        # Parse HTML
+        # Parse HTML — single parse, extract everything before destructive ops
         soup = BeautifulSoup(response.text, "lxml")
 
         # Title
@@ -115,13 +115,6 @@ def fetch_page(url: str, timeout: int = 30) -> dict:
                 if level == 1:
                     result["h1_tags"].append(text)
 
-        # Text content
-        for element in soup.find_all(["script", "style", "nav", "footer", "header"]):
-            element.decompose()
-        text = soup.get_text(separator=" ", strip=True)
-        result["text_content"] = text
-        result["word_count"] = len(text.split())
-
         # Links
         parsed_url = urlparse(url)
         base_domain = parsed_url.netloc
@@ -145,19 +138,16 @@ def fetch_page(url: str, timeout: int = 30) -> dict:
             }
             result["images"].append(img_data)
 
-        # Structured data (JSON-LD)
-        for script in BeautifulSoup(response.text, "lxml").find_all(
-            "script", type="application/ld+json"
-        ):
+        # Structured data (JSON-LD) — extract BEFORE decompose mutates the tree
+        for script in soup.find_all("script", type="application/ld+json"):
             try:
                 data = json.loads(script.string)
                 result["structured_data"].append(data)
             except (json.JSONDecodeError, TypeError):
                 result["errors"].append("Invalid JSON-LD detected")
 
-        # SSR check — look for signs of client-side only rendering
-        noscript_tags = BeautifulSoup(response.text, "lxml").find_all("noscript")
-        js_app_roots = BeautifulSoup(response.text, "lxml").find_all(
+        # SSR check — extract BEFORE decompose mutates the tree
+        js_app_roots = soup.find_all(
             id=re.compile(r"(app|root|__next|__nuxt)", re.I)
         )
 
@@ -170,6 +160,14 @@ def fetch_page(url: str, timeout: int = 30) -> dict:
                     result["errors"].append(
                         f"Possible client-side only rendering detected: #{root.get('id', 'unknown')} has minimal server-rendered content"
                     )
+
+        # Text content — destructive operation (decompose removes elements from tree)
+        # Must come AFTER all other soup queries above
+        for element in soup.find_all(["script", "style", "nav", "footer", "header"]):
+            element.decompose()
+        text = soup.get_text(separator=" ", strip=True)
+        result["text_content"] = text
+        result["word_count"] = len(text.split())
 
     except requests.exceptions.Timeout:
         result["errors"].append(f"Timeout after {timeout} seconds")
@@ -388,8 +386,13 @@ def extract_content_blocks(html: str) -> list:
     return blocks
 
 
-def crawl_sitemap(url: str, max_pages: int = 50, timeout: int = 15) -> list:
-    """Crawl sitemap.xml to discover pages."""
+def crawl_sitemap(url: str, max_pages: int = 50, timeout: int = 15) -> dict:
+    """Crawl sitemap.xml to discover pages.
+
+    Returns a dict with 'pages' (list of URLs) and 'errors' (list of any
+    issues encountered). Previous versions returned a bare list and silently
+    swallowed all exceptions.
+    """
     parsed = urlparse(url)
     sitemap_urls = [
         f"{parsed.scheme}://{parsed.netloc}/sitemap.xml",
@@ -398,6 +401,7 @@ def crawl_sitemap(url: str, max_pages: int = 50, timeout: int = 15) -> list:
     ]
 
     discovered_pages = set()
+    errors = []
 
     for sitemap_url in sitemap_urls:
         try:
@@ -426,8 +430,10 @@ def crawl_sitemap(url: str, max_pages: int = 50, timeout: int = 15) -> list:
                                         discovered_pages.add(loc_tag.text.strip())
                                     if len(discovered_pages) >= max_pages:
                                         break
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            errors.append(
+                                f"Failed to fetch child sitemap {loc.text.strip()}: {e}"
+                            )
                     if len(discovered_pages) >= max_pages:
                         break
 
@@ -442,10 +448,12 @@ def crawl_sitemap(url: str, max_pages: int = 50, timeout: int = 15) -> list:
                 if discovered_pages:
                     break
 
-        except Exception:
+        except Exception as e:
+            errors.append(f"Failed to fetch {sitemap_url}: {e}")
             continue
 
-    return list(discovered_pages)[:max_pages]
+    pages = list(discovered_pages)[:max_pages]
+    return {"pages": pages, "count": len(pages), "errors": errors}
 
 
 if __name__ == "__main__":
@@ -464,8 +472,7 @@ if __name__ == "__main__":
     elif mode == "llms":
         data = fetch_llms_txt(target_url)
     elif mode == "sitemap":
-        pages = crawl_sitemap(target_url)
-        data = {"pages": pages, "count": len(pages)}
+        data = crawl_sitemap(target_url)
     elif mode == "blocks":
         response = requests.get(target_url, headers=DEFAULT_HEADERS, timeout=30)
         data = extract_content_blocks(response.text)
