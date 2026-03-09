@@ -101,13 +101,20 @@ geo-seo-claude/
 │   ├── citability_scorer.py      # AI citability scoring engine
 │   ├── brand_scanner.py          # Brand mention detection
 │   ├── llmstxt_generator.py      # llms.txt validation & generation
-│   └── generate_pdf_report.py    # PDF report generator (ReportLab)
-├── tests/                        # Test suite (121 tests)
+│   ├── generate_pdf_report.py    # PDF report generator (ReportLab)
+│   ├── security_headers_fix.py   # Security header audit + server-specific fix configs
+│   ├── robots_fix.py             # robots.txt AI crawler access fixer & merger
+│   ├── meta_tags_fix.py          # Meta/OG/Twitter tag audit + HTML snippet generator
+│   ├── image_audit_fix.py        # Image optimization audit + corrected tags & WebP commands
+│   ├── sitemap_generator.py      # XML sitemap generator from crawled pages
+│   └── indexnow_generator.py     # IndexNow key file, submission scripts & n8n config
+├── tests/                        # Test suite (167 tests)
 │   ├── test_citability_scorer.py # Scoring logic, grades, year pattern tests
 │   ├── test_fetch_page.py        # Sitemap URL parsing, content extraction tests
 │   ├── test_brand_scanner.py     # Brand mention scanning, Wikipedia API mocking
 │   ├── test_llmstxt_generator.py # llms.txt validation and generation tests
-│   └── test_generate_pdf_report.py # PDF report data structures, color logic
+│   ├── test_generate_pdf_report.py # PDF report data structures, color logic
+│   └── test_fix_generators.py    # All 6 fix generators: headers, robots, meta, images, sitemap, indexnow
 ├── schema/                       # JSON-LD templates
 │   ├── organization.json         # Organization schema (with sameAs)
 │   ├── local-business.json       # LocalBusiness schema
@@ -180,13 +187,13 @@ Full audits gracefully handle agent failures with automatic retry, proportional 
 
 ## Testing
 
-Run the test suite (121 tests) from the repo root:
+Run the test suite (167 tests) from the repo root:
 
 ```bash
 python3 -m pytest tests/ -v
 ```
 
-Tests cover citability scoring logic, grade boundaries, dynamic year pattern matching, sitemap URL parsing (regression tests for a fixed bug), HTML content block extraction, brand mention scanning (with mocked Wikipedia/Wikidata APIs), llms.txt validation and generation (page categorization, format checks), and PDF report data structures (color logic, score mapping, action plan tiers).
+Tests cover citability scoring logic, grade boundaries, dynamic year pattern matching, sitemap URL parsing (regression tests for a fixed bug), HTML content block extraction, brand mention scanning (with mocked Wikipedia/Wikidata APIs), llms.txt validation and generation (page categorization, format checks), PDF report data structures (color logic, score mapping, action plan tiers), and all 6 fix generators (security headers with server detection, robots.txt parsing and merging, meta tag auditing, image optimization, sitemap XML generation, and IndexNow implementation).
 
 ---
 
@@ -223,7 +230,14 @@ This fork includes the following improvements over the [original repo](https://g
 - **Perf fix:** Eliminated triple BeautifulSoup re-parse in `fetch_page.py` — reordered operations so JSON-LD and SSR checks run before the destructive `decompose()`, reducing from 4 HTML parses to 1
 - **Bug fix:** Silent exception swallowing in `crawl_sitemap()` — changed return type from bare list to structured dict with `pages`, `count`, and `errors` keys so failures are surfaced instead of silently dropped
 - **Feature:** Agent Failure Handling specification in `geo/SKILL.md` — recovery strategy, re-weighting formula, retry logic, Data Completeness reporting
-- **Feature:** Test suite — 121 tests covering citability scoring, content extraction, brand scanning, llms.txt generation, PDF report logic, and the fixed bugs
+- **Feature:** Test suite — 167 tests covering citability scoring, content extraction, brand scanning, llms.txt generation, PDF report logic, fix generators, and the fixed bugs
+- **Feature:** 6 code-level fix generators that produce deployable artifacts:
+  - `security_headers_fix.py` — detects server type (Nginx/Apache/Vercel/Netlify/Cloudflare/Express) and generates copy-paste config snippets for all missing security headers
+  - `robots_fix.py` — parses existing robots.txt, preserves all current rules, and merges in AI crawler Allow directives (3 strategies: allow_all, search_only, minimal)
+  - `meta_tags_fix.py` — audits title, description, canonical, Open Graph, and Twitter Card tags; generates a complete HTML snippet to paste into `<head>`
+  - `image_audit_fix.py` — detects missing alt text, dimensions, lazy loading, and legacy formats; generates corrected `<img>` tags, WebP conversion commands, and `<picture>` elements
+  - `sitemap_generator.py` — crawls the site, classifies pages by type, and generates a valid XML sitemap with priority and changefreq values
+  - `indexnow_generator.py` — generates the IndexNow key file, cURL commands, a Python submission script, and an n8n webhook config for instant Bing indexing
 
 ---
 
