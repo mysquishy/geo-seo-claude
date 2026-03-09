@@ -6,13 +6,14 @@ description: >
   traditional SEO foundations. Performs full GEO audits, citability scoring,
   AI crawler analysis, llms.txt generation, brand mention scanning, platform-specific
   optimization, schema markup, technical SEO, content quality (E-E-A-T), and
-  client-ready GEO report generation. Use when user says "geo", "seo", "audit",
-  "AI search", "AI visibility", "optimize", "citability", "llms.txt", "schema",
-  "brand mentions", "GEO report", or any URL for analysis.
+  client-ready GEO report generation (standard and premium co-branded).
+  Use when user says "geo", "seo", "audit", "AI search", "AI visibility",
+  "optimize", "citability", "llms.txt", "schema", "brand mentions", "GEO report",
+  "premium report", "branded report", or any URL for analysis.
 allowed-tools: Read, Grep, Glob, Bash, WebFetch, Write
 ---
 
-# GEO-SEO Analysis Tool — Claude Code Skill (February 2026)
+# GEO-SEO Analysis Tool — Claude Code Skill (March 2026)
 
 > **Philosophy:** GEO-first, SEO-supported. AI search is eating traditional search.
 > This tool optimizes for where traffic is going, not where it was.
@@ -35,6 +36,7 @@ allowed-tools: Read, Grep, Glob, Bash, WebFetch, Write
 | `/geo content <url>` | Content quality and E-E-A-T assessment |
 | `/geo report <url>` | Generate client-ready GEO deliverable |
 | `/geo report-pdf <url>` | Generate professional PDF report with charts and scores |
+| `/geo report-premium <url>` | Generate premium co-branded PDF with client brand colors |
 | `/geo quick <url>` | 60-second GEO visibility snapshot |
 
 ---
@@ -90,68 +92,26 @@ When running the full audit with 5 parallel subagents, failures **will** happen 
 timeouts, rate limiting, malformed HTML, etc.). The orchestrator must handle these
 gracefully rather than aborting the entire audit.
 
-### Failure Detection
-
-After launching all 5 subagents, check each result for:
-- **Complete failure**: Agent produced no output or threw an unrecoverable error.
-- **Partial failure**: Agent completed some analyses but not all (e.g., brand scanner
-  succeeded but Wikipedia API timed out).
-- **Data quality issue**: Agent returned results but with warnings (e.g., "robots.txt
-  returned 403 — status unknown").
-
 ### Recovery Strategy
 
 | Failure Type | Action | Scoring Impact |
 |---|---|---|
-| **1 agent fails completely** | Continue with remaining 4 agents. Mark the failed category as "N/A — analysis unavailable" in the report. Recalculate the GEO Score using only the available categories (re-weight proportionally). | Composite score still valid, note reduced confidence. |
-| **2 agents fail** | Continue with remaining 3 agents. Issue a prominent warning that the audit is partial. Still generate a report but label it "PARTIAL AUDIT" in the header. | Score marked as "Partial — X/5 analyses completed". |
-| **3+ agents fail** | Abort the full audit. Inform the user which agents failed and suggest re-running individual commands (e.g., `/geo citability`, `/geo technical`) to isolate the problem. | No composite score generated. |
-| **Partial agent failure** | Use whatever data the agent did return. In the report, note which sub-analyses within that agent succeeded and which did not. Score only the successful sub-analyses. | Category score based on available data with a note. |
-| **Timeout (>60s per agent)** | If an agent hasn't returned after 60 seconds, do NOT wait indefinitely. Mark it as timed out and proceed with synthesis using whatever results are available. | Same as complete failure for that agent. |
+| **1 agent fails** | Continue with remaining 4. Re-weight scores proportionally. | Composite score valid, note reduced confidence. |
+| **2 agents fail** | Continue with 3. Label report "PARTIAL AUDIT". | Score marked as partial. |
+| **3+ agents fail** | Abort. Suggest re-running individual commands. | No composite score. |
+| **Timeout (>60s)** | Mark as timed out, proceed with available results. | Same as complete failure. |
 
 ### Re-Weighting Formula
-
-When one or more agents fail, re-weight the remaining scores proportionally:
 
 ```
 adjusted_weight = original_weight / sum(weights_of_successful_agents)
 ```
 
-Example: If geo-schema (10% weight) fails, the remaining 90% of weights are
-scaled to 100%:
-- AI Citability: 25/90 = 27.8%
-- Brand Authority: 20/90 = 22.2%
-- Content Quality: 20/90 = 22.2%
-- Technical: 15/90 = 16.7%
-- Platform Optimization: 10/90 = 11.1%
-
 ### Retry Logic
 
-- **Automatic retry**: If an agent fails on its first attempt due to a network
-  error or timeout, retry ONCE with a 5-second backoff.
-- **No retry** for: malformed HTML parsing errors, authentication failures (403),
-  or domain resolution failures (DNS).
-- **Manual retry**: Always inform the user which agent failed and which individual
-  `/geo` command they can run to retry just that analysis.
-
-### Error Reporting in Output
-
-Every audit report must include a "Data Completeness" section:
-
-```markdown
-## Data Completeness
-
-| Agent | Status | Notes |
-|---|---|---|
-| AI Visibility | ✅ Complete | — |
-| Platform Analysis | ✅ Complete | — |
-| Technical SEO | ⚠️ Partial | Core Web Vitals API timed out; other checks passed |
-| Content Quality | ✅ Complete | — |
-| Schema Markup | ❌ Failed | Connection refused after retry; run `/geo schema <url>` separately |
-
-**Audit Confidence:** 4/5 agents completed (High)
-**Score Basis:** Composite GEO Score calculated from 4 of 5 categories (re-weighted)
-```
+- **Auto retry**: Once on network errors with 5-second backoff.
+- **No retry**: Malformed HTML, 403, DNS failures.
+- **Manual retry**: Inform user which `/geo` command to re-run.
 
 ---
 
@@ -170,8 +130,6 @@ Every audit report must include a "Data Completeness" section:
 
 ## Business Type Detection
 
-Analyze homepage for patterns:
-
 | Type | Signals |
 |------|---------|
 | **SaaS** | Pricing page, "Sign up", "Free trial", "/app", "/dashboard", API docs |
@@ -181,11 +139,9 @@ Analyze homepage for patterns:
 | **Agency** | Portfolio, case studies, "Our services", client logos, testimonials |
 | **Other** | Default — apply general GEO best practices |
 
-Adjust recommendations based on detected type. Local businesses need LocalBusiness schema and Google Business Profile optimization. SaaS needs SoftwareApplication schema and comparison page strategy. E-commerce needs Product schema and review aggregation.
-
 ---
 
-## Sub-Skills (10 Specialized Components)
+## Sub-Skills (12 Specialized Components)
 
 | # | Skill | Directory | Purpose |
 |---|-------|-----------|---------|
@@ -199,6 +155,8 @@ Adjust recommendations based on detected type. Local businesses need LocalBusine
 | 8 | geo-technical | `skills/geo-technical/` | Technical SEO foundations |
 | 9 | geo-content | `skills/geo-content/` | Content quality and E-E-A-T |
 | 10 | geo-report | `skills/geo-report/` | Client-ready deliverable generation |
+| 11 | geo-report-pdf | `skills/geo-report-pdf/` | Standard PDF report with charts |
+| 12 | geo-report-premium | `skills/geo-report-premium/` | Premium co-branded PDF with client colors |
 
 ---
 
@@ -216,8 +174,6 @@ Adjust recommendations based on detected type. Local businesses need LocalBusine
 
 ## Output Files
 
-All commands generate structured output:
-
 | Command | Output File |
 |---------|------------|
 | `/geo audit` | `GEO-AUDIT-REPORT.md` |
@@ -232,39 +188,50 @@ All commands generate structured output:
 | `/geo content` | `GEO-CONTENT-ANALYSIS.md` |
 | `/geo report` | `GEO-CLIENT-REPORT.md` (presentation-ready) |
 | `/geo report-pdf` | `GEO-REPORT.pdf` (professional PDF with charts) |
+| `/geo report-premium` | `GEO-PREMIUM-REPORT.pdf` (co-branded with client colors) |
 | `/geo quick` | Inline summary (no file) |
 
 ---
 
 ## PDF Report Generation
 
-The `/geo report-pdf <url>` command generates a professional, branded PDF report:
+### Standard Report (`/geo report-pdf <url>`)
 
-### How It Works
-1. Run the full audit or individual analyses first
-2. Collect all scores and findings into a JSON structure
-3. Execute the PDF generator: `python3 ~/.claude/skills/geo/scripts/generate_pdf_report.py data.json GEO-REPORT.pdf`
+```bash
+python3 ~/.claude/skills/geo/scripts/generate_pdf_report.py data.json GEO-REPORT.pdf
+```
 
-### What the PDF Includes
-- **Cover page** with GEO score gauge visualization
-- **Score breakdown** with color-coded bar charts
-- **AI Platform Readiness** dashboard with horizontal bar chart
-- **Crawler Access** status table with color-coded Allow/Block
-- **Key Findings** categorized by severity (Critical/High/Medium/Low)
-- **Prioritized Action Plan** (Quick Wins, Medium-Term, Strategic)
-- **Methodology & Glossary** appendix
+Fixed color scheme, professional layout with score gauges, bar charts, and action plans.
 
-### Workflow
+### Premium Co-Branded Report (`/geo report-premium <url>`)
+
+```bash
+python3 ~/.claude/skills/geo/scripts/generate_premium_report.py data.json GEO-PREMIUM-REPORT.pdf \
+  --client-url <url> \
+  --consultant-name "Your Brand Name"
+```
+
+Extracts the client's brand colors from their website and generates a co-branded report.
+Colors are extracted from: theme-color meta tag, CSS custom properties, header background,
+or the most frequent non-grey hex color on the page.
+
+Options:
+- `--client-url URL` — Extract brand colors from this URL (defaults to audit URL)
+- `--client-color HEX` — Override client color manually (e.g., "#2563eb")
+- `--consultant-name NAME` — Your brand name for co-branding
+- `--consultant-color HEX` — Override your brand color (default: navy #1a1a2e)
+
+### Workflow for Both
 1. First run `/geo audit <url>` to collect all data
-2. Then run `/geo report-pdf <url>` to generate the PDF
-3. The tool will compile audit data into JSON, then generate the PDF
-4. Output: `GEO-REPORT.pdf` in the current directory
+2. Then run `/geo report-pdf <url>` or `/geo report-premium <url>`
+3. The tool compiles audit data into JSON, then generates the PDF
+4. Output: PDF in the current directory
 
 ---
 
 ## Quality Gates
 
-- **Crawl limit:** Max 50 pages per audit (focus on quality over quantity)
+- **Crawl limit:** Max 50 pages per audit
 - **Timeout:** 30 seconds per page fetch
 - **Rate limiting:** 1-second delay between requests, max 5 concurrent
 - **Robots.txt:** Always respect, always check
@@ -275,21 +242,24 @@ The `/geo report-pdf <url>` command generates a professional, branded PDF report
 ## Quick Start Examples
 
 ```
-# Full GEO audit of a website
+# Full GEO audit
 /geo audit https://example.com
 
-# Check if AI bots can see your site
+# Check AI crawler access
 /geo crawlers https://example.com
 
-# Score a specific page for AI citability
+# Score a page for citability
 /geo citability https://example.com/blog/best-article
 
-# Generate an llms.txt file for your site
+# Generate llms.txt
 /geo llmstxt https://example.com
 
-# Get a 60-second visibility snapshot
+# 60-second snapshot
 /geo quick https://example.com
 
-# Generate a client-ready report
-/geo report https://example.com
+# Standard PDF report
+/geo report-pdf https://example.com
+
+# Premium co-branded report
+/geo report-premium https://example.com
 ```
