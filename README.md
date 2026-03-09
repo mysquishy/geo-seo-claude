@@ -31,13 +31,13 @@
 ### One-Command Install (macOS/Linux)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zubair-trabzada/geo-seo-claude/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/mysquishy/geo-seo-claude/main/install.sh | bash
 ```
 
 ### Manual Install
 
 ```bash
-git clone https://github.com/zubair-trabzada/geo-seo-claude.git
+git clone https://github.com/mysquishy/geo-seo-claude.git
 cd geo-seo-claude
 ./install.sh
 ```
@@ -102,6 +102,9 @@ geo-seo-claude/
 │   ├── brand_scanner.py          # Brand mention detection
 │   ├── llmstxt_generator.py      # llms.txt validation & generation
 │   └── generate_pdf_report.py    # PDF report generator (ReportLab)
+├── tests/                        # Test suite (55 tests)
+│   ├── test_citability_scorer.py # Scoring logic, grades, year pattern tests
+│   └── test_fetch_page.py        # Sitemap URL parsing, content extraction tests
 ├── schema/                       # JSON-LD templates
 │   ├── organization.json         # Organization schema (with sameAs)
 │   ├── local-business.json       # LocalBusiness schema
@@ -130,8 +133,9 @@ When you run `/geo audit https://example.com`:
    - Technical SEO (Core Web Vitals, SSR, security, mobile)
    - Content Quality (E-E-A-T, readability, freshness)
    - Schema Markup (detection, validation, generation)
-3. **Synthesis** — Aggregates scores, generates composite GEO Score (0-100)
-4. **Report** — Outputs prioritized action plan with quick wins
+3. **Resilience** — If any agent fails, the orchestrator continues with available results, re-weights the composite score proportionally, and flags incomplete sections (see Agent Failure Handling in `geo/SKILL.md`)
+4. **Synthesis** — Aggregates scores, generates composite GEO Score (0-100)
+5. **Report** — Outputs prioritized action plan with quick wins
 
 ### Scoring Methodology
 
@@ -166,6 +170,21 @@ Generates the emerging llms.txt standard file that helps AI crawlers understand 
 ### Client-Ready Reports
 Generates professional GEO reports in markdown or PDF format. PDF reports include score gauges, bar charts, platform readiness visualizations, color-coded tables, and prioritized action plans — ready to deliver to clients.
 
+### Agent Failure Resilience
+Full audits gracefully handle agent failures with automatic retry, proportional score re-weighting, and Data Completeness reporting. See the detailed specification in `geo/SKILL.md`.
+
+---
+
+## Testing
+
+Run the test suite (55 tests) from the repo root:
+
+```bash
+python3 -m pytest tests/ -v
+```
+
+Tests cover citability scoring logic, grade boundaries, dynamic year pattern matching, sitemap URL parsing (regression tests for a fixed bug), and HTML content block extraction.
+
 ---
 
 ## Use Cases
@@ -192,19 +211,14 @@ rm -rf ~/.claude/skills/geo ~/.claude/skills/geo-* ~/.claude/agents/geo-*.md
 
 ---
 
-## Want to Turn This Into a Business?
+## Fork Changes
 
-The tool is free. Learning how to monetize it is where the community comes in.
+This fork includes the following improvements over the [original repo](https://github.com/zubair-trabzada/geo-seo-claude):
 
-**[Join the AI Workshop Community →](https://skool.com/aiworkshop)**
-
-Inside you'll get:
-- **Video walkthroughs** — Step-by-step setup, running audits, reading results
-- **Client acquisition playbook** — How to find prospects, pitch GEO services, and close deals
-- **Live office hours** — Bring your audit results, get direct help
-- **GEO agency pricing & templates** — Proposal docs, cold outreach scripts, onboarding workflows
-
-GEO agencies charge $2K–$12K/month. This tool does the audit. The community teaches you how to sell it.
+- **Bug fix:** Sitemap URL parsing in `fetch_page.py` — HTTPS URLs were being corrupted during robots.txt parsing
+- **Bug fix:** Dynamic year regex in `citability_scorer.py` — replaced hardcoded 2013-2026 range with auto-adjusting pattern
+- **Feature:** Agent Failure Handling specification in `geo/SKILL.md` — recovery strategy, re-weighting formula, retry logic, Data Completeness reporting
+- **Feature:** Test suite — 55 tests covering citability scoring, content extraction, and the fixed bugs
 
 ---
 
